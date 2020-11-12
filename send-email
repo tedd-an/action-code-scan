@@ -1,0 +1,136 @@
+#!/usr/bin/env python3
+#
+# Send Email
+#
+# Tedd Ho-Jeong An (tedd.an@intel.com)
+import os
+import sys
+import argparse
+import datetime
+import configparser
+import smtplib
+import email.utils
+from email.mime.application import MIMEApplication
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
+TITLE = '''[Intel - internal] BlueZ static code scan result: {}'''
+
+MESSAGE = '''Hi BlueZ Team,
+
+As a part of BlueZ CI, it runs Clang code scan weekly and the result of this week's run is attached.
+The execution log can be found from the Github Action page(https://github.com/BluezTestBot/bluez/actions)
+
+
+In addition, it runs Coverity scan and the defect can be found from the coverity website:
+https://scan.coverity.com/projects/blueztestbot-bluez/view_defects
+
+If you don't have an access to the Coverity Defect list, send email to Tedd An(tedd.an@intel.com).
+
+---
+Regards,
+Linux Bluetooth
+
+'''
+
+def get_title():
+    date = datetime.datetime.now()
+    return TITLE.format(date.strftime("%Y-%m-%d"))
+
+def send_email(email_cfg, sender, receiver, msg):
+    if 'EMAIL_TOKEN' not in os.environ:
+        print("WARNING: missing EMAIL_TOKEN. Skip sending email")
+        return
+
+    try:
+        session = smtplib.SMTP(email_cfg['server'], int(email_cfg['port']))
+        session.ehlo()
+        if 'starttls' not in email_cfg or email_cfg['starttls'] == 'yes':
+            session.starttls()
+        session.ehlo()
+        session.login(sender, os.environ['EMAIL_TOKEN'])
+        session.sendmail(sender, receiver, msg.as_string())
+        print("Successfully sent email")
+    except Exception as e:
+        print("Exception: {}".format(e))
+    finally:
+        session.quit()
+
+    print("Sending email done")
+
+def compose_and_send(email_cfg, title, body):
+
+    sender = email_cfg['user']
+    to = "".join(email_cfg['to'].splitlines()).split(',')
+    cc = "".join(email_cfg['cc'].splitlines()).split(',')
+
+    msg = MIMEMultipart()
+    msg['From'] = sender
+    msg['To'] = ", ".join(to)
+    msg['Cc'] = ", ".join(cc)
+    msg['Subject'] = title
+
+    msg.attach(MIMEText(body, 'plain'))
+
+    print("Mail Message: {}".format(msg))
+
+    if 'attachment' in email_cfg:
+        afile_path = email_cfg['attachment']
+        afile_base = os.path.basename(afile_path)
+        with open(afile_path, "rb") as f:
+            part = MIMEApplication(f.read(), Name=afile_base)
+        part['Content-Disposition'] = 'attachment; filename="%s"' % afile_base
+        msg.attach(part)
+
+    send_email(email_cfg, sender, [sender] + to + cc, msg)
+
+def parse_config(config_file):
+
+    config_full_path = os.path.abspath(config_file)
+
+    print("Configuration: %s" % config_full_path)
+    if not os.path.exists(config_full_path):
+        print("ERROR: Unable to find configuration file")
+        return None
+
+    config = configparser.ConfigParser()
+    config.read(config_full_path)
+
+    # Display current configurations
+    for section in config.sections():
+        print("[%s]" % section)
+        for (key, val) in config.items(section):
+            print("     %s : %s" % (key, val))
+
+    return config
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Help to send email")
+    parser.add_argument('-c', '--config-file', default='send-email.cfg',
+                        help='Email configuration file')
+    parser.add_argument('-a', '--attachment', nargs='?', default="",
+                        help='Attachment file')
+    return parser.parse_args()
+
+def main():
+
+    args = parse_args()
+
+    config = parse_config(args.config_file)
+    if not config:
+        sys.exit(1)
+
+    # Check attachment
+    if args.attachment:
+        full_path = os.path.abspath(args.attachment)
+        if not os.path.exists(full_path):
+            print("ERROR: Unable to find the attachment: %s" % full_path)
+            sys.exit(1)
+
+        config['email']['attachment'] = full_path
+
+    compose_and_send(config['email'], get_title(), MESSAGE)
+
+if __name__ == "__main__":
+    main()

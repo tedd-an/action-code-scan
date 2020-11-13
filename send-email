@@ -19,7 +19,7 @@ TITLE = '''[Intel - internal] BlueZ static code scan result: {}'''
 MESSAGE = '''Hi BlueZ Team,
 
 As a part of BlueZ CI, it runs Clang code scan weekly and the result of this week's run is attached.
-The execution log can be found from the Github Action page(https://github.com/BluezTestBot/bluez/actions)
+The execution log and scan result artifacts can be found from the Github Action page(https://github.com/tedd-an/bluez/actions?query=workflow%3A%22Code+Scan%22)
 
 
 In addition, it runs Coverity scan and the defect can be found from the coverity website:

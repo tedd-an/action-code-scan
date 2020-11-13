@@ -44,7 +44,8 @@ elif [ "$SCAN_TOOL" = 'clang' ]; then
 
     if [ $? -eq 0 ]; then
         echo ">> Clang Code Scan run completed and result is saved to $SCAN_REPORT_PATH"
-        tar -cvzf scan_report.tar.gz $SCAN_REPORT_PATH
+        # Exclude sorttable.js due to security issue from some email scanner
+        tar -cvzf scan_report.tar.gz --exclude=sorttable.js $SCAN_REPORT_PATH
         /send-email -c /send-email.cfg -a scan_report.tar.gz
     else
         echo ">> ERROR: Failed to run Clang Code Scan"
